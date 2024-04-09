@@ -47,6 +47,8 @@ function build::binaries::kube_bins() {
   # Run in two steps to support passing -trimpath
   export CGO_ENABLED=0
   export GOLDFLAGS='-s -w -buildid=""'
+
+  # Components to build as static binaries
   export KUBE_STATIC_OVERRIDES="cmd/kubelet \
       cmd/kube-proxy \
       cmd/kubeadm \
@@ -58,37 +60,42 @@ function build::binaries::kube_bins() {
   # For Kubernetes 1.23 and older, removing `make generated_files` results in this error:
   # cmd/kube-apiserver/app/server.go:401:80: undefined: "k8s.io/kubernetes/pkg/generated/openapi".GetOpenAPIDefinitions
   #
-  # This block should be removes when 1.23 is no longer supported.
+  # This block should be removed when 1.23 is no longer supported.
   local -r minor_version=${release_branch: -2}
   if [[ $minor_version -le 23 ]]; then
     make generated_files
   fi
 
   # Linux
+  export KUBE_BUILD_COMPONENTS_LINUX="${KUBE_BUILD_COMPONENTS_LINUX:-cmd/kubelet \
+      cmd/kube-proxy \
+      cmd/kubeadm \
+      cmd/kubectl \
+      cmd/kube-apiserver \
+      cmd/kube-controller-manager \
+      cmd/kube-scheduler}"
+
   for arch in linux/amd64 linux/arm64; do
     export KUBE_BUILD_PLATFORMS="$arch"
-    hack/make-rules/build.sh -trimpath cmd/kubelet \
-          cmd/kube-proxy \
-          cmd/kubeadm \
-          cmd/kubectl \
-          cmd/kube-apiserver \
-          cmd/kube-controller-manager \
-          cmd/kube-scheduler
+    hack/make-rules/build.sh -trimpath $KUBE_BUILD_COMPONENTS_LINUX
 
     # In presubmit builds space is very limited
     rm -rf ./_output/local/go/cache
   done
   
   # Windows
+  export KUBE_BUILD_COMPONENTS_WINDOWS="${KUBE_BUILD_COMPONENTS_WINDOWS:-cmd/kubelet \
+        cmd/kube-proxy \
+        cmd/kubeadm \
+        cmd/kubectl}"
+
   export KUBE_BUILD_PLATFORMS="windows/amd64"
-  hack/make-rules/build.sh -trimpath cmd/kubelet \
-    cmd/kube-proxy \
-      cmd/kubeadm \
-      cmd/kubectl
+  hack/make-rules/build.sh -trimpath $KUBE_BUILD_COMPONENTS_WINDOWS
 
   # Darwin
+  export KUBE_BUILD_COMPONENTS_DARWIN="${KUBE_BUILD_COMPONENTS_DARWIN:-cmd/kubectl}"
   export KUBE_BUILD_PLATFORMS="darwin/amd64" 
-  hack/make-rules/build.sh -trimpath cmd/kubectl
+  hack/make-rules/build.sh -trimpath $KUBE_BUILD_COMPONENTS_DARWIN
 
   # In presubmit builds space is very limited
   rm -rf ./_output/local/go/cache
